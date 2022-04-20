@@ -1,0 +1,13 @@
+{
+    "Name": "Misty",
+    "UniqueId" : "e9003d17-67c8-4dce-9d04-841106c7feaa",
+    "Description": "Time-of-flight tutorial skill",
+    "StartupRules": ["Manual", "Robot"],
+    "Language": "javascript",
+    "BroadcastMode": "verbose",
+    "TimeoutInSeconds": 300,
+    "CleanupOnCancel": false,
+    "SkillStorageLifetime": "Reboot",
+    "WriteToLog": false,
+    "Parameters": { }
+}
