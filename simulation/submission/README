@@ -1,0 +1,231 @@
+________________________________________________________________________________
+
+TITLE:
+Occlusion Based Robotic Object Pushing Simulation
+Probabilistic Robotics HW5, Spring 2022
+
+DATE: 
+April 21st, 2022
+
+AUTHORS:
+Emma Bethel, Allison Moore, Ray Rogers
+
+________________________________________________________________________________
+
+REFERENCES / CREDITS:
+
+--------------------------------------------------------------------------------
+
+1)  Junyan Hu, Ali Emre Turgut, Tomáš Krajník (Member, IEEE), Barry Lennox 
+    (Senior Member, IEEE), and Farshad Arvin (Member, IEEE). 2022. Occlusion-
+    Based Coordination Protocol Design for Autonomous Robotic Shepherding Tasks. 
+    IEEE Transactions on Cognitive and Developmental Systems, Vol. 14, No. 1, 
+    March 2022.
+
+2)  Yusuke Tsunoda, Yuichiro Sueoka, Teruyo Wada, and Koichi Osuka. 2020. 
+    Sheepdog-type robot navigation: Experimental verification based on a linear 
+    model. Proceedings of the 2020 IEEE/SICE International Symposium on System 
+    Integration, Honolulu, Hawaii, USA, January 12-15, 2020.
+
+3)  Aditya A. Paranjape, Soon-Jo Chung (Senior Member, IEEE), Kyunam Kim, and 
+    David Hyunchul Shim (Senior Member, IEEE). Robotic Herding of a Flock of 
+    Birds Using an Unmanned Aerial Vehicle. IEEE Transactions on Robotics, 
+    Vol. 34, No. 4, August 2018.
+
+4)  Zhiyu Liu, Bo Wu and Hai Lin. Coordinated Robot-assisted Human Crowd
+    Evacuation. 2018 IEEE Conference on Decision and Control (CDC) Miami Beach,
+    FL, USA, Dec. 17-19, 2018
+    
+5)  Masao Kubo, Midori Tashiro, Hiroshi Sato, and Akihiro Yamaguchi. Herd 
+    guidance by multiple sheepdog agents with repulsive force. International 
+    Society of Artifcial Life and Robotics (ISAROB), 2022
+
+6)  Daniel Strömbom, Richard P. Mann, Alan M. Wilson, Stephen Hailes, 
+    A. Jennifer Morton, David J. T. Sumpter and Andrew J. King. Solving the 
+    shepherding problem: heuristics for herding autonomous, interacting agents.
+    The Royal Society, Vol. 11, Issue 10006, November 6, 2014. 
+
+Special thanks to Isac Sheidlower on advice on vector math in linear potential 
+fields and in helping debug the Herding Simulation 
+
+________________________________________________________________________________
+
+PURPOSE:
+
+--------------------------------------------------------------------------------
+
+This program simulates an occlusion based algorithm for a robot to push objects
+toward a given goal position. 
+
+________________________________________________________________________________
+
+FILES:
+
+--------------------------------------------------------------------------------
+
+main.py: 
+
+    main.py calls instances of both the flock and the robot class object to 
+    generate a simulation in opencv of the robots' movement herding the flock 
+    relative to the goal. The extents of the image and simulation range is 
+    determined by x_max and y_max. The flock radius is determined by the 
+    variable flock_rad and the robot radius is determined by the the values 
+    max_x and max_y. 
+
+    The simulation is run inside a while loop that cycles until the robot has 
+    reached its goal. The flock object is passed to the robot object and several 
+    robot class functions are called to update the robot's movement.
+
+-------------------------------------------------------------------------------- 
+
+robot.py:   
+
+    Robot.py contains the robot class for updating and moving the robot forward.
+
+    Functions:  ---------------------------------------------
+    
+    Constructors: 
+        
+        init(self, max_x, max_y, radius, flock, goal_pos):
+
+            initializes the robots position within the maximum range of the 
+            frame (max_x and max_y) sets the robot's radius and the goal 
+            poisition based on provided values. 
+
+    Getters: 
+
+        flock_pos(self):
+            returns flock position
+
+        flock_radius(self):
+            returns flock radius
+
+        get_pos(self):
+            returns robot position
+
+        get_flock_pos(self):
+            returns flock position
+            
+        get_flock_radius(self):
+            returns flock radius
+            
+    Setters: 
+
+        update_pos(self):
+            updates the robot's position based on the control vector
+    
+    Helpers: 
+
+        avoid_flock(self, pos, effective_dist, flock_pos, flock_radius, goal):
+            Determines if the robot must swerve to avoid the flock by checking 
+            if the robot is within the influenctial zone and outside of the 
+            "flock" itself. It returns a 1 or 0 to indicate whether the robot 
+            must swerve. 
+        
+        repulsion_from_flock(self, repulsive_constant, pos, flock_pos, 
+                             flock_radius, goal, effective_dist):
+            calculates the portion of the control vector meant to help the robot
+            avoid the occulation zone by moving the robot away from the herd 
+            tangentially. Akihiro
+
+        attraction_to_goal(self, c_t, pos, flock_pos, omega):
+            determines the portion of the control vector pulling toward the 
+            flock
+
+        control(self, repulsive_constant, omega, effective_dist):
+            determines the control vector for the robots motion
+
+        ---------------------------------------------------------
+
+--------------------------------------------------------------------------------    
+
+flock.py:  
+
+    flock.py contains the flock class for updating and moving the flock.
+    
+    Functions:  ---------------------------------------------
+    
+    Constructors: 
+
+        __init__(self, max_x, max_y, radius):
+            initializes the flock class based on the radius of the flock and 
+            a randomly generated position within the max extents of the frame.
+
+    Getters:
+    
+        get_pos(self):
+            returns the position of the flocks center of mass
+            
+        get_radius(self):
+            returns the radius of the flock
+    
+    Setters:
+    
+        move(self, robot_pos, robot_radius):
+            moves the flock is the flock is being pushed by the robot by keeping
+            the bodies of the robot and flock concentric. 
+
+    ---------------------------------------------------------
+    
+
+--------------------------------------------------------------------------------
+    
+README:
+
+    Overview of the program and its components
+
+--------------------------------------------------------------------------------
+
+Prob Rob Simulation Results.mp4: 
+
+    Video of the herding simulation with various starting points for the robot 
+    and object. In all configurations shown, the robot successfully navigates 
+    to the occlusion area and pushes the object toward the goal.
+
+
+_______________________________________________________________________________
+
+ALGORITHM: 
+
+    The algorithm implemented is based on the Hu et. al. (2022) Occlusion-Based
+    Algorithm for robotic shepherding. In this simulation, the robot and object 
+    (called "flock" in the code, in refrence to how the base algorithm was 
+    originally designed for robotic shepherding) starting positions are chosen 
+    randomly, and based on those positions, as well as a set goal position, the 
+    robot calculates acontrol vector at each time step to push it first into 
+    the "occlusion zone" (where the object occludes the robot's path to the 
+    goal), and then toward the goal, pushing the object along with it. This 
+    final control vector is expressed as the sum of two intermediate ones: ua, 
+    which guides the robot around the object as it moves into the occlusion 
+    zone so as not to push it backward, and u_b, which guides the robot toward 
+    the center of the object such that it is pushed first toward the object in 
+    order to push it, and then toward the goal once in the occlusion zone. The 
+    calculates for the vectors come largely from those introduced by Hu et. al, 
+    though modifications were made to make ua point tangent to the object 
+    rather than directly away from it such that the robot would be guided 
+    around the stationary object instead of expecting it to move (as sheep 
+    would) on its path into the occlusion zone.
+
+________________________________________________________________________________
+
+DEPENDENCIES:
+
+    numpy, opencv-python
+
+________________________________________________________________________________
+
+HOW TO RUN:
+    
+    In the command line, run the following...
+        
+        python main.py
+
+    A window  should open up showing three dots on a white background- a 
+    stationary pink one, representing the goal position, a red one, representing 
+    the object to be pushed, and a purple one representing the robot. The robot 
+    and flock positions, as well as the robot's control vector, are also printed 
+    to standard output at each time step. Re-run several times to see the 
+    effects of different starting positions for the robot and object.
+
+
+_______________________________________________________________________________
