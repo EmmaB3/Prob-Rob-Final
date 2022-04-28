@@ -1,16 +1,14 @@
-
-# TITLE: Probabilistic Robotics HW5 - Hearding Simulation Robot Class
+# TITLE: Probabilistic Robotics HW5 - Herding Simulation Robot Class
 # AUTHORS: Allison Moore, Emma Bethel, Ray Rogers
+#          Largely based on Hu et. al.'s Occlusion-Based Algorithm for 
+#          Autonomous Robotic Shepherding
 # CREATED: 4/19/22
 
 
 # IMPORTS
 
 import math
-from tkinter.tix import MAX
 import numpy as np
-import cv2
-import time
 import random
 
 
@@ -29,21 +27,23 @@ class Robot:
     #INITIALIZERS
 
     def __init__(self, max_x, max_y, radius, flock, goal_pos):
-        ## SIMULATED VARIABLES
-        self.effective_dist = radius + 10 # effective distanve of robot (since we're pushing objects, should be radius)
-        self.goal_pos = goal_pos
+        # effective distance of robot (essentially how far robot should stay 
+        #   from flock when swerving around it)
+        self.effective_dist = radius + 10 
+
+        self.goal_pos = goal_pos  # goal position
         self.pos = np.array(
             [
                 random.uniform(radius / 2.0, max_x - (radius / 2.0)),
                 random.uniform(radius / 2.0, max_y - (radius / 2.0))
             ]
-        ) # robot position
+        )  # robot position
         self.flock = flock
-        self.c_t = C_0 # initial c value 
+        self.c_t = C_0 # initial c value (for use in control vector calculation)
 
     @property
     def flock_pos(self):
-        return self.flock.get_current_pos()
+        return self.flock.get_pos()
     
     @property
     def flock_radius(self):
@@ -70,44 +70,43 @@ class Robot:
     #HELPERS
 
     '''
-    dog_influencer 
-    purpose: 
-    paramaters: replus - 
-                d - position of the robot
-                dv - 
-                sbar - center of mass of the flock
-                rs - 
-                g - 
-    returns: u  as either 1 or 0 
+    avoid_flock
+    purpose: determines whether current robot position requires swerving to 
+             avoid flock (for use in ua calculation)
+    paramaters: pos - position of the robot
+                effective_dist - how far robot should stay 
+                                 from flock when swerving around it
+                flock_pos - center of mass of the flock
+                flock_radius - radius of flock
+                goal - goal position
+    returns: 1 if robot must swerve to avoid flock when entering 
+             occlusion zone, 0 otherwise
     '''
-    def dog_influencer(self, d, dv, sbar, rs, g):
+    def avoid_flock(self, pos, effective_dist, flock_pos, flock_radius, goal):
         term1 = False
         term2 = False
 
-        flock_to_bot_vec = d - sbar
+        flock_to_bot_vec = pos - flock_pos
         flock_to_bot_dist = np.linalg.norm(flock_to_bot_vec)
-        bot_to_goal_vec = g - d
+        bot_to_goal_vec = goal - pos
         goal_to_bot_dist = np.linalg.norm(bot_to_goal_vec)
         
-        term1 = flock_to_bot_dist <= rs + dv
+        term1 = flock_to_bot_dist <= flock_radius + effective_dist
 
-        val = abs(np.linalg.det(np.c_[bot_to_goal_vec, sbar - d])) / goal_to_bot_dist
+        val = abs(np.linalg.det(np.c_[bot_to_goal_vec, flock_pos - pos])) / goal_to_bot_dist
 
-        # dis2 = np.linalg.norm(d-g) 
-        # dis3 = np.linalg.norm(sbar-g)
-        goal_to_flock_dist = np.linalg.norm(g - sbar)
-        term2 = (val >= rs or goal_to_bot_dist <= goal_to_flock_dist)
+        goal_to_flock_dist = np.linalg.norm(goal - flock_pos)
+        term2 = (val >= flock_radius or goal_to_bot_dist <= goal_to_flock_dist)
 
         if term2 and term1:
             return 1 
         
         return 0
 
-
     '''
     repulsion_from_flock
-    purpose:    determines the potion of the control vector preventing robot from 
-                pushing herd backward while entering occlusion zone
+    purpose:    calculates portion of control vector guidign robot around herd 
+                (instead of pushing it backward) while entering occlusion zone
     parameters: repulsive_constant - constant determining magnitude of repulsive 
                                     force generated to repel robot from goal
                 pos - position vector of the robot
@@ -122,28 +121,40 @@ class Robot:
         flock_to_robot = pos - flock_pos
         dist_from_flock = np.linalg.norm(flock_to_robot)
 
-        result = 1 / dist_from_flock
-        result = result -  (1 / (flock_radius + effective_dist))
-        result = result * repulsive_constant
+        coefficient = 1 / dist_from_flock
+        coefficient = coefficient -  (1 / (flock_radius + effective_dist))
+        coefficient = coefficient * repulsive_constant
 
-        dog_influencer = self.dog_influencer(
+        dog_influencer = self.avoid_flock(
             pos,
             effective_dist,
             flock_pos, 
             flock_radius,
             goal 
         )
-        if dog_influencer != 0:
-            print('NONZERO', pos, flock_pos)
-        result = result * dog_influencer
-        result = result * flock_to_robot / (dist_from_flock ** 2)
-        
-        return result      
+
+        coefficient = coefficient * dog_influencer
+
+        # multiplying coefficient by a vector tangent to the one between robot 
+        #   and flock, such that robot will move around flock without pushing it
+        tangent = np.array([- flock_to_robot[1], flock_to_robot[0]]) / dist_from_flock
+
+        # flipping direction of tangent vector if going clockwise will bring 
+        #   robot closer to occlusion zone than counterclockwise
+        goal_to_flock = flock_pos - goal
+        det = np.linalg.det(np.c_[goal_to_flock, flock_to_robot])
+        if det > 0:
+            tangent = -1 * tangent
+
+
+        return coefficient * tangent
 
 
     '''
     attraction_to_goal
-    purpose:    determines the portion of the control vector pulling robot toward goal 
+    purpose: determines the portion of the control vector pulling robot 
+             toward flock, which, once it has reached the occlusion zone, will 
+             also push it toward goal 
                 once it has reach occlusion area
     parameters: c_t - current value of c weight
                 pos - position vector of the robot
@@ -162,18 +173,9 @@ class Robot:
             math.sqrt(omega) * flock_to_robot_mat
         ).item()
 
-        # rho = 1 + 3*a + 3*np.matmul(a,a) + np.matmul(np.matmul(a,a),a)
         rho = (1 + a) ** 3
-        print("rho", rho)
+
         return -1 * c_t * rho * a * math.sqrt(omega) * flock_to_robot
-
-        
-        # result = np.matmul(-1 * c_t, rho)
-        # result = np.matmul(result, a)
-
-        # result = np.matmul(result, math.sqrt(omega) * flock_to_robot)
-
-        # return result
 
     '''
     control
@@ -193,17 +195,17 @@ class Robot:
         c_change = np.matmul(flock_to_bot_mat.T, omega * flock_to_bot_mat).item()
         self.c_t = self.c_t + c_change
 
-        print('c_t', self.c_t)
-
+        # calculate ua (keeps robot from pushing flock backwards while moving 
+        #   into occusion zone)
         a = self.repulsion_from_flock(repulsive_constant, self.pos, self.flock_pos, self.flock_radius, self.goal_pos, effective_dist)
-        print("ua", a)
 
+        # calculate ub (moves robot toward flock)
         b = self.attraction_to_goal(self.c_t, self.pos, self.flock_pos, omega)
-        print("ub", b)
         
+        # combine ua and ub into overall control vector
         raw_vec = a + b
 
-        # if overall soeed of control greater than max speed, cap the x 
+        # if overall speed of control greater than max speed, cap the x 
         #   and y velocities while preserving vector direction
         raw_velocity = np.linalg.norm(raw_vec)
         if raw_velocity > MAX_SPEED:
@@ -213,7 +215,7 @@ class Robot:
         return raw_vec
 
 
-# MAIN FUNCTION
+# MAIN FUNCTION -- FOR TESTING PURPOSES ONLY
 
 def main():
     r = Robot(5)

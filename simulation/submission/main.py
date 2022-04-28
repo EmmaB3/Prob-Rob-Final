@@ -12,7 +12,7 @@ def main():
     goal_pos = np.array([50,50]) #goal position
     f = Flock(max_x, max_y, flock_rad)
     r = Robot(max_x, max_y, ROBOT_RADIUS,f, goal_pos)
-    print("robot start pos", r.get_pos(), "flock start pos", f.get_current_pos())
+    print("robot start pos", r.get_pos(), "flock start pos", f.get_pos())
     r.update_pos()
     counter = 0
     reached_goal = False
@@ -40,7 +40,7 @@ def main():
         f.move(robot_pos, ROBOT_RADIUS)
         r.update_pos()
         
-        reached_goal = (np.linalg.norm(f.get_current_pos() - goal_pos) <= 10)
+        reached_goal = (np.linalg.norm(f.get_pos() - goal_pos) <= 10)
         print('')
 
 

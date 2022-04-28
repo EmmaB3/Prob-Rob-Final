@@ -1,9 +1,13 @@
-import math
+# TITLE: Probabilistic Robotics HW5 - Herding Simulation Flock Class
+# AUTHORS: Allison Moore, Emma Bethel, Ray Rogers
+# CREATED: 4/21/22
+
 import numpy as np
 import random
 
 
 class Flock:
+
     def __init__(self, max_x, max_y, radius):
         self.pos = np.array(
             [
@@ -13,12 +17,19 @@ class Flock:
         )
         self.radius = radius
 
-    def get_current_pos(self):
+    def get_pos(self):
         return self.pos
     
     def get_radius(self):
         return self.radius
     
+    '''
+    move
+    purpose: move the flock of currently being pushed by a robot
+    parameters: robot_pos - position of robot centroid
+                robot_radius - radius of robot
+    returns: n/a
+    '''
     def move(self, robot_pos, robot_radius):
         robot_to_flock = self.pos - robot_pos
         dist_from_robot = np.linalg.norm(robot_to_flock)
@@ -35,18 +46,3 @@ class Flock:
             )
 
             self.pos = robot_pos + total_radius * direction
-            # x_dist = robot_pos[0] - self.pos[0]
-            # y_dist = robot_pos[1] - self.pos[1]
-
-            # theta = math.atan(y_dist / x_dist) # + random.gauss(0, 0.01)
-
-            # self.pos = np.array(
-            #     [
-            #         robot_pos[0] - total_radius * math.cos(theta),
-            #         robot_pos[1] - total_radius * math.sin(theta)
-            #     ]
-            # )
-
-
-
-            
