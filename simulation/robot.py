@@ -7,15 +7,19 @@
 # IMPORTS
 
 import math
+from tkinter.tix import MAX
 import numpy as np
 import cv2
 import time
+import random
 
 
 # CONSTANTS
 
-REPULSIVE_CONSTANT = 8
-OMEGA = 0.0000125
+REPULSIVE_CONSTANT = 2000
+OMEGA = 0.0001
+MAX_SPEED = 5  # in pixels
+C_0 = 2
 
 
 # ROBOT CLASS
@@ -24,14 +28,26 @@ class Robot:
 
     #INITIALIZERS
 
-    def __init__(self, radius):
+    def __init__(self, max_x, max_y, radius, flock, goal_pos):
         ## SIMULATED VARIABLES
-        self.effective_dist = radius # effective distanve of robot (since we're pushing objects, should be radius)
-        self.goal_pos = np.array([50,50]) #goal position
-        self.pos = np.array([10, 10])  # robot position
-        self.flock_pos = np.array([30, 30]) #Center of Mass of flock
-        self.flock_radius = 10 # radius of flock
-        self.c_t = np.array([0.5, 0.5]) # initial c value 
+        self.effective_dist = radius + 10 # effective distanve of robot (since we're pushing objects, should be radius)
+        self.goal_pos = goal_pos
+        self.pos = np.array(
+            [
+                random.uniform(radius / 2.0, max_x - (radius / 2.0)),
+                random.uniform(radius / 2.0, max_y - (radius / 2.0))
+            ]
+        ) # robot position
+        self.flock = flock
+        self.c_t = C_0 # initial c value 
+
+    @property
+    def flock_pos(self):
+        return self.flock.get_current_pos()
+    
+    @property
+    def flock_radius(self):
+        return self.flock.radius
 
     # GETTERS
     def get_pos(self):
@@ -45,6 +61,7 @@ class Robot:
 
 
     def update_pos(self):
+        print('robot pos', self.pos, 'flock pos', self.flock_pos, "goal pos", self.goal_pos)
         control_vec = self.control(REPULSIVE_CONSTANT, OMEGA, self.effective_dist)
         print("control", control_vec)
         self.pos = self.pos + control_vec
@@ -63,31 +80,28 @@ class Robot:
                 g - 
     returns: u  as either 1 or 0 
     '''
-    def dog_influencer(self, replus, d, dv, sbar, rs, g):
+    def dog_influencer(self, d, dv, sbar, rs, g):
         term1 = False
         term2 = False
-        
-        distance = np.linalg.norm(d-sbar)
-        rnd = rs + dv 
-        
-        if distance <= rnd:
-            term1 = True 
 
-        val1 = g-d 
-        val2 = sbar-d 
-        val = np.linalg.det(np.c_[val1, val2])
-        val_d = np.linalg.norm(g-d)
-        sum = val/val_d 
+        flock_to_bot_vec = d - sbar
+        flock_to_bot_dist = np.linalg.norm(flock_to_bot_vec)
+        bot_to_goal_vec = g - d
+        goal_to_bot_dist = np.linalg.norm(bot_to_goal_vec)
+        
+        term1 = flock_to_bot_dist <= rs + dv
 
-        dis2 = np.linalg.norm(d-g) 
-        dis3 = np.linalg.norm(sbar-g)
-        if distance > rnd or dis2 <= dis3:
-            term2 = True 
+        val = abs(np.linalg.det(np.c_[bot_to_goal_vec, sbar - d])) / goal_to_bot_dist
+
+        # dis2 = np.linalg.norm(d-g) 
+        # dis3 = np.linalg.norm(sbar-g)
+        goal_to_flock_dist = np.linalg.norm(g - sbar)
+        term2 = (val >= rs or goal_to_bot_dist <= goal_to_flock_dist)
 
         if term2 and term1:
             return 1 
-        else: 
-            return 0
+        
+        return 0
 
 
     '''
@@ -105,19 +119,24 @@ class Robot:
     returns:    resulting control vector
     '''
     def repulsion_from_flock(self, repulsive_constant, pos, flock_pos, flock_radius, goal, effective_dist):
-        robot_to_flock = pos - flock_pos
-        dist_from_flock = np.linalg.norm(robot_to_flock)
+        flock_to_robot = pos - flock_pos
+        dist_from_flock = np.linalg.norm(flock_to_robot)
 
-        result = (1 / dist_from_flock + 1/(flock_radius + effective_dist))
-        result *= repulsive_constant
-        result *= self.dog_influencer(
-            repulsive_constant,
-            pos, effective_dist,
-            flock_pos,
+        result = 1 / dist_from_flock
+        result = result -  (1 / (flock_radius + effective_dist))
+        result = result * repulsive_constant
+
+        dog_influencer = self.dog_influencer(
+            pos,
+            effective_dist,
+            flock_pos, 
             flock_radius,
             goal 
         )
-        result *= robot_to_flock / (dist_from_flock * dist_from_flock)
+        if dog_influencer != 0:
+            print('NONZERO', pos, flock_pos)
+        result = result * dog_influencer
+        result = result * flock_to_robot / (dist_from_flock ** 2)
         
         return result      
 
@@ -134,26 +153,27 @@ class Robot:
     '''
     def attraction_to_goal(self, c_t, pos, flock_pos, omega):
 
-        robot_to_flock = pos - flock_pos
+        flock_to_robot = pos - flock_pos
 
-        print("robot to fuck",robot_to_flock)
+        flock_to_robot_mat = flock_to_robot.reshape(-1, 1)
 
-        robot_to_flock_mat = robot_to_flock.reshape(-1, 1)
+        a = np.matmul(
+            flock_to_robot_mat.T,
+            math.sqrt(omega) * flock_to_robot_mat
+        ).item()
 
-        a = robot_to_flock_mat.T * math.sqrt(omega) * robot_to_flock_mat
+        # rho = 1 + 3*a + 3*np.matmul(a,a) + np.matmul(np.matmul(a,a),a)
+        rho = (1 + a) ** 3
+        print("rho", rho)
+        return -1 * c_t * rho * a * math.sqrt(omega) * flock_to_robot
 
-        print("a",a)
-
-        rho = 1 + 3*a + 3*np.matmul(a,a) + np.matmul(np.matmul(a,a),a)
-
-        print("rho",rho)
         
-        result = np.matmul(-1 * c_t, rho)
-        result = np.matmul(result, a)
+        # result = np.matmul(-1 * c_t, rho)
+        # result = np.matmul(result, a)
 
-        result = np.matmul(result, math.sqrt(omega) * robot_to_flock)
+        # result = np.matmul(result, math.sqrt(omega) * flock_to_robot)
 
-        return result
+        # return result
 
     '''
     control
@@ -166,22 +186,31 @@ class Robot:
     '''
     def control(self, repulsive_constant, omega, effective_dist):
 
-        robot_to_flock = self.pos - self.flock_pos
+        # update c_t
+        flock_to_bot = self.pos - self.flock_pos
+        flock_to_bot_mat = flock_to_bot.reshape(-1, 1)
 
-        robot_to_flock_mat = robot_to_flock.reshape(-1, 1)
+        c_change = np.matmul(flock_to_bot_mat.T, omega * flock_to_bot_mat).item()
+        self.c_t = self.c_t + c_change
 
-        self.c_t = self.c_t + (robot_to_flock_mat.T * omega * robot_to_flock_mat)
-
-        print("ct", self.c_t)
+        print('c_t', self.c_t)
 
         a = self.repulsion_from_flock(repulsive_constant, self.pos, self.flock_pos, self.flock_radius, self.goal_pos, effective_dist)
         print("ua", a)
 
         b = self.attraction_to_goal(self.c_t, self.pos, self.flock_pos, omega)
         print("ub", b)
+        
+        raw_vec = a + b
 
+        # if overall soeed of control greater than max speed, cap the x 
+        #   and y velocities while preserving vector direction
+        raw_velocity = np.linalg.norm(raw_vec)
+        if raw_velocity > MAX_SPEED:
+            unit_vec = raw_vec / raw_velocity
+            return MAX_SPEED * unit_vec
 
-        return a + b
+        return raw_vec
 
 
 # MAIN FUNCTION

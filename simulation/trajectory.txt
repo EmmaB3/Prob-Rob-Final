@@ -1,0 +1,9 @@
+robot start pos [105.64512533  56.25083299] flock start pos [ 9.97676396 38.82900521]
+robot pos [105.64512533  56.25083299] flock pos [ 9.97676396 38.82900521] goal pos [50 50]
+c_t 2.9455955449130493
+ua [-0. -0.]
+rho 872614.3468994703
+ub [-2.32524766e+08 -4.23442648e+07]
+control [-4.91909977 -0.8957999 ]
+flock pos [ 9 38] flock radius 10
+robot pos [100  55] robot radius 5
